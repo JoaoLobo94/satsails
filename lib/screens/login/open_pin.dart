@@ -1,3 +1,7 @@
+import 'package:Satsails/models/auth_model.dart';
+import 'package:Satsails/providers/auth_provider.dart';
+import 'package:Satsails/providers/bitcoin_config_provider.dart';
+import 'package:Satsails/providers/liquid_config_provider.dart';
 import 'package:Satsails/screens/receive/components/custom_elevated_button.dart';
 import 'package:Satsails/screens/shared/message_display.dart';
 import 'package:Satsails/translations/translations.dart';
@@ -6,7 +10,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:Satsails/providers/auth_provider.dart';
 import 'package:Satsails/screens/shared/custom_button.dart';
 import 'package:quickalert/quickalert.dart';
 
@@ -95,18 +98,20 @@ class _OpenPinState extends ConsumerState<OpenPin> {
   }
 
   Future<void> _checkPin(BuildContext context, WidgetRef ref) async {
-    final authModel = ref.read(authModelProvider);
+    final authModel = AuthModel();
     final pinText = await authModel.getPin();
 
     if (pinText == _pinController.text) {
-      _attempts = 0; // Reset the attempts counter on success
+      _attempts = 0;
+      ref.read(appLockedProvider.notifier).state = false;
+      ref.invalidate(bitcoinConfigProvider);
+      ref.invalidate(liquidConfigProvider);
       context.go('/home');
     } else {
-      _attempts++; // Increment the attempts counter
+      _attempts++;
 
-      // Check if the user has failed 6 times
       if (_attempts >= 6) {
-        await _forgotPin(context, ref); // Trigger wallet deletion
+        await _forgotPin(context, ref);
       } else {
         int remainingAttempts = 6 - _attempts;
         showMessageSnackBar(
@@ -133,6 +138,9 @@ class _OpenPinState extends ConsumerState<OpenPin> {
       );
 
       if (authenticated) {
+        ref.read(appLockedProvider.notifier).state = false;
+        ref.invalidate(bitcoinConfigProvider);
+        ref.invalidate(liquidConfigProvider);
         context.go('/home');
       }
     }
@@ -170,6 +178,9 @@ class _OpenPinState extends ConsumerState<OpenPin> {
   Future<void> _forgotPin(BuildContext context, WidgetRef ref) async {
     final authModel = ref.read(authModelProvider);
     await authModel.deleteAuthentication(); // Delete the wallet
+    ref.read(appLockedProvider.notifier).state = true;
+    ref.invalidate(bitcoinConfigProvider);
+    ref.invalidate(liquidConfigProvider);
     context.go('/');
   }
 }
